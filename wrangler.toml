@@ -1,0 +1,8 @@
+# Cloudflare Pages configuration for l-helper.
+#
+# Deploy from the project root with:
+#   npx wrangler pages deploy
+# (wrangler reads `pages_build_output_dir` below, so `dist` is used automatically.)
+
+name = "l-helper"
+pages_build_output_dir = "dist"
