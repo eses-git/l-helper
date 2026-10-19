@@ -31,5 +31,22 @@
     "typescript": "~7.0.2",
     "typescript-eslint": "^8.71.2",
     "vite": "^8.3.4"
+  },
+  "overrides": {
+    "@typescript-eslint/eslint-plugin": {
+      "typescript": "$typescript"
+    },
+    "@typescript-eslint/type-utils": {
+      "typescript": "$typescript"
+    },
+    "@typescript-eslint/typescript-estree": {
+      "typescript": "$typescript"
+    },
+    "@typescript-eslint/utils": {
+      "typescript": "$typescript"
+    },
+    "typescript-eslint": {
+      "typescript": "$typescript"
+    }
   }
 }
