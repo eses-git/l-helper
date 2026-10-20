@@ -8,6 +8,22 @@ export type Speaker = 'interviewer' | 'candidate'
 /** Lifecycle state of a generated answer. */
 export type AnswerStatus = 'pending' | 'streaming' | 'complete' | 'error'
 
+/** Which audio input source the listener should use. */
+export type AudioMode = 'standard' | 'voice-filter' | 'network-stream'
+
+/** Acoustic fingerprint of the user's voice used by the voice filter. */
+export interface VoiceProfile {
+  /** Approximate fundamental frequency in Hz. */
+  pitch: number
+  /** Spectral centroid in Hz. */
+  spectralCentroid: number
+  /** Epoch milliseconds when the profile was captured. */
+  createdAt: number
+}
+
+/** Live classification state surfaced by the voice filter. */
+export type VoiceFilterState = 'idle' | 'no-profile' | 'self' | 'external'
+
 /**
  * Locally-stored candidate context used to enrich answers
  * before they are sent to the assistant.
@@ -29,6 +45,9 @@ export interface AppSettings {
   temperature: number
   autoSendOnFinal: boolean
   systemPromptTemplate: string
+  audioMode: AudioMode
+  networkStreamUrl: string
+  voiceMatchThreshold: number
 }
 
 /** A single captured utterance from the live feed. */

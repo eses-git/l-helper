@@ -69,7 +69,7 @@ export default function MarkdownText({ text, className }: MarkdownTextProps) {
           key={blockKey}
           className="overflow-x-auto rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 font-mono text-xs leading-relaxed text-zinc-200"
         >
-          <code>{codeLines.join('\n')}</code>
+          <code className="whitespace-pre">{codeLines.join('\n')}</code>
         </pre>,
       )
       continue
@@ -91,7 +91,7 @@ export default function MarkdownText({ text, className }: MarkdownTextProps) {
         items.push(
           <li key={key} className="flex gap-2">
             <span className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-emerald-400" />
-            <span>{renderInline(content, key)}</span>
+            <span className="min-w-0 break-words">{renderInline(content, key)}</span>
           </li>,
         )
         i++
@@ -106,7 +106,7 @@ export default function MarkdownText({ text, className }: MarkdownTextProps) {
 
     // Paragraph
     blocks.push(
-      <p key={blockKey} className="leading-relaxed">
+      <p key={blockKey} className="break-words leading-relaxed">
         {renderInline(line, blockKey)}
       </p>,
     )
@@ -115,5 +115,5 @@ export default function MarkdownText({ text, className }: MarkdownTextProps) {
 
   if (blocks.length === 0) return null
 
-  return <div className={className ?? 'space-y-2 text-sm leading-relaxed text-zinc-200'}>{blocks}</div>
+  return <div className={className ?? 'min-w-0 space-y-2 break-words text-sm leading-relaxed text-zinc-200'}>{blocks}</div>
 }

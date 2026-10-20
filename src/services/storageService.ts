@@ -20,6 +20,9 @@ export const defaultSettings: AppSettings = {
   temperature: 0.3,
   autoSendOnFinal: true,
   systemPromptTemplate: '',
+  audioMode: 'standard',
+  networkStreamUrl: '',
+  voiceMatchThreshold: 0.25,
 }
 
 function readJSON<T extends object>(key: string, fallback: T): T {

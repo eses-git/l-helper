@@ -46,3 +46,17 @@ body {
 .caret-blink {
   animation: caret-blink 1s steps(2, start) infinite;
 }
+
+/* Touch-friendly defaults on mobile devices */
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+button,
+[role='button'],
+input,
+select,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}

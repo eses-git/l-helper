@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { Check, CircleAlert, ListChecks, LoaderCircle, Send, Trash } from 'lucide-react'
 import type { AnswerItem, TranscriptItem } from '../types'
 import MarkdownText from './MarkdownText'
+import Toggle from './Toggle'
 
 interface TranscriptViewProps {
   items: TranscriptItem[]
@@ -96,30 +97,16 @@ export default function TranscriptView({
           <h2 className="text-sm font-semibold text-zinc-100">Question feed</h2>
         </div>
 
-        <label className="ml-auto flex cursor-pointer items-center gap-2 text-[11px] text-zinc-400">
-          <span>Auto-send</span>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={autoSendOnFinal}
-            onClick={() => onToggleAutoSend(!autoSendOnFinal)}
-            className={`relative h-5 w-9 rounded-full transition-colors ${
-              autoSendOnFinal ? 'bg-emerald-500' : 'bg-zinc-700'
-            }`}
-          >
-            <span
-              className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform ${
-                autoSendOnFinal ? 'translate-x-[18px]' : 'translate-x-0.5'
-              }`}
-            />
-          </button>
-        </label>
+        <div className="ml-auto flex items-center gap-2">
+          <span className="text-[11px] text-zinc-400">Auto-send</span>
+          <Toggle checked={autoSendOnFinal} onChange={onToggleAutoSend} label="Toggle auto-send" />
+        </div>
 
         <button
           type="button"
           onClick={onClear}
           title="Clear transcript"
-          className="flex items-center gap-1.5 rounded-lg border border-zinc-800 px-2 py-1.5 text-[11px] text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-100"
+          className="flex h-11 min-w-11 items-center justify-center gap-1.5 rounded-lg border border-zinc-800 px-2.5 text-[11px] text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-100"
         >
           <Trash size={13} />
           Clear
@@ -139,7 +126,7 @@ export default function TranscriptView({
           const answer = answerItems.find((a) => a.questionId === item.id)
           return (
             <div key={item.id} className="rounded-lg border border-zinc-800 bg-zinc-950/50 p-3">
-              <div className="mb-1 flex items-center gap-2">
+              <div className="mb-1 flex flex-wrap items-center gap-2">
                 <span
                   className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
                     item.speaker === 'interviewer'
@@ -154,17 +141,17 @@ export default function TranscriptView({
                   <button
                     type="button"
                     onClick={() => onGenerate(item)}
-                    className="ml-auto flex items-center gap-1 rounded border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] text-emerald-300 transition-colors hover:bg-emerald-500/20"
+                    className="ml-auto flex h-11 min-w-11 items-center justify-center gap-1 rounded border border-emerald-500/30 bg-emerald-500/10 px-2.5 text-[10px] text-emerald-300 transition-colors hover:bg-emerald-500/20"
                   >
-                    <Send size={11} />
+                    <Send size={12} />
                     Ask
                   </button>
                 )}
               </div>
-              <p className="text-sm leading-relaxed text-zinc-200">{item.text}</p>
+              <p className="break-words text-sm leading-relaxed text-zinc-200">{item.text}</p>
 
               {answer && (
-                <div className="mt-3 rounded-lg border border-zinc-800/70 bg-zinc-900/40 px-3 py-2.5">
+                <div className="mt-3 min-w-0 rounded-lg border border-zinc-800/70 bg-zinc-900/40 px-3 py-2.5">
                   <AnswerBlock answer={answer} />
                 </div>
               )}

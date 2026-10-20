@@ -18,8 +18,8 @@ export default function Navbar({
   onOpenSettings,
 }: NavbarProps) {
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-zinc-800 bg-zinc-950/90 px-3 backdrop-blur sm:px-4">
-      <div className="flex items-center gap-2.5">
+    <header className="scrollbar-thin sticky top-0 z-30 flex h-14 shrink-0 items-center gap-2 overflow-x-auto border-b border-zinc-800 bg-zinc-950/90 px-3 backdrop-blur sm:px-4">
+      <div className="flex shrink-0 items-center gap-2.5">
         <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-400">
           <Zap size={18} strokeWidth={2.5} />
         </span>
@@ -29,7 +29,7 @@ export default function Navbar({
         </div>
       </div>
 
-      <div className="ml-1 flex items-center gap-1.5">
+      <div className="ml-1 flex shrink-0 items-center gap-1.5">
         <span
           className="flex items-center gap-1.5 rounded-full border border-zinc-800 bg-zinc-900 px-2.5 py-1 text-[11px] text-zinc-400"
           title="Questions captured"
@@ -46,7 +46,7 @@ export default function Navbar({
         </span>
       </div>
 
-      <div className="ml-auto flex items-center gap-2">
+      <div className="ml-auto flex shrink-0 items-center gap-2">
         <span
           className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium ${
             isListening
@@ -62,18 +62,18 @@ export default function Navbar({
           type="button"
           onClick={onToggleDrawer}
           title="Toggle profile panel"
-          className="flex h-9 w-9 items-center justify-center rounded-lg border border-zinc-800 bg-zinc-900 text-zinc-300 transition-colors hover:bg-zinc-800 hover:text-zinc-50"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-zinc-800 bg-zinc-900 text-zinc-300 transition-colors hover:bg-zinc-800 hover:text-zinc-50"
         >
-          {isDrawerOpen ? <PanelRightClose size={17} /> : <PanelRight size={17} />}
+          {isDrawerOpen ? <PanelRightClose size={18} /> : <PanelRight size={18} />}
         </button>
 
         <button
           type="button"
           onClick={onOpenSettings}
           title="Open settings"
-          className="flex h-9 w-9 items-center justify-center rounded-lg border border-zinc-800 bg-zinc-900 text-zinc-300 transition-colors hover:bg-zinc-800 hover:text-zinc-50"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-zinc-800 bg-zinc-900 text-zinc-300 transition-colors hover:bg-zinc-800 hover:text-zinc-50"
         >
-          <Settings size={17} />
+          <Settings size={18} />
         </button>
       </div>
     </header>

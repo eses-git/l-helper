@@ -1,10 +1,16 @@
 import { Mic, MicOff, Trash, Volume2 } from 'lucide-react'
-import { speechErrorMessage } from '../hooks/useSpeechRecognition'
+import type { AudioMode, VoiceFilterState } from '../types'
+import type { NetworkStreamStatus } from '../services/networkStreamService'
 
 interface SpeechControlsProps {
   isSupported: boolean
   isListening: boolean
-  error: string | null
+  errorMessage: string | null
+  mode: AudioMode
+  hasVoiceProfile: boolean
+  hasStreamUrl: boolean
+  networkStatus: NetworkStreamStatus
+  filterState: VoiceFilterState
   onStart: () => void
   onStop: () => void
   onReset: () => void
@@ -31,18 +37,52 @@ function Hotkey({ keys, label }: { keys: string[]; label: string }) {
 export default function SpeechControls({
   isSupported,
   isListening,
-  error,
+  errorMessage,
+  mode,
+  hasVoiceProfile,
+  hasStreamUrl,
+  networkStatus,
+  filterState,
   onStart,
   onStop,
   onReset,
 }: SpeechControlsProps) {
+  const isNetwork = mode === 'network-stream'
+  const canStart = isNetwork ? hasStreamUrl : isSupported
+
+  let statusLine: string
+  if (!canStart) {
+    statusLine = isNetwork ? 'Add a stream URL in Settings' : 'Not supported in this browser'
+  } else if (isListening) {
+    if (mode === 'voice-filter') {
+      statusLine = hasVoiceProfile ? 'Filtering — external voice only' : 'Listening — no voice profile'
+    } else if (isNetwork) {
+      statusLine =
+        networkStatus === 'connected'
+          ? 'Receiving network audio…'
+          : networkStatus === 'connecting'
+            ? 'Connecting to stream…'
+            : 'Stream active'
+    } else {
+      statusLine = 'Capturing speech…'
+    }
+  } else if (mode === 'voice-filter') {
+    statusLine = hasVoiceProfile
+      ? 'Tap the mic for filtered listening'
+      : 'Tap the mic to listen (record a voice profile to filter)'
+  } else if (isNetwork) {
+    statusLine = 'Tap the mic to connect to stream'
+  } else {
+    statusLine = 'Tap the mic to start'
+  }
+
   return (
-    <section className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4">
+    <section className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-3 sm:p-4">
       <div className="flex items-center gap-3">
         <button
           type="button"
           onClick={isListening ? onStop : onStart}
-          disabled={!isSupported}
+          disabled={!canStart}
           className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-full border transition-all disabled:cursor-not-allowed disabled:opacity-40 ${
             isListening
               ? 'border-red-500/40 bg-red-500/15 text-red-400'
@@ -55,20 +95,14 @@ export default function SpeechControls({
 
         <div className="min-w-0 flex-1">
           <h2 className="text-sm font-semibold text-zinc-100">Live audio listener</h2>
-          <p className="truncate text-xs text-zinc-400">
-            {!isSupported
-              ? 'Not supported in this browser'
-              : isListening
-                ? 'Capturing speech…'
-                : 'Tap the mic to start'}
-          </p>
+          <p className="truncate text-xs text-zinc-400">{statusLine}</p>
         </div>
 
         <button
           type="button"
           onClick={onReset}
           title="Clear transcript"
-          className="flex items-center gap-1.5 rounded-lg border border-zinc-800 bg-zinc-900 px-2.5 py-1.5 text-xs text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-100"
+          className="flex h-11 min-w-11 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-zinc-800 bg-zinc-900 px-2.5 text-xs text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-100"
         >
           <Trash size={14} />
           <span className="hidden sm:inline">Clear</span>
@@ -94,9 +128,24 @@ export default function SpeechControls({
         </span>
       </div>
 
-      {error && (
+      {mode === 'voice-filter' && isListening && (
+        <p className="mt-2 flex items-center gap-1.5 rounded-lg border border-zinc-800 bg-zinc-900/60 px-2.5 py-1.5 text-[11px] text-zinc-400">
+          <span
+            className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+              filterState === 'self' ? 'bg-amber-400' : filterState === 'external' ? 'bg-emerald-400' : 'bg-zinc-500'
+            }`}
+          />
+          {filterState === 'self'
+            ? 'Your voice — ignoring'
+            : filterState === 'external'
+              ? 'External voice — capturing'
+              : 'Analyzing speaker…'}
+        </p>
+      )}
+
+      {errorMessage && (
         <p className="mt-2 flex items-start gap-1.5 rounded-lg border border-amber-500/20 bg-amber-500/10 px-2.5 py-1.5 text-[11px] text-amber-300">
-          {speechErrorMessage(error)}
+          {errorMessage}
         </p>
       )}
 

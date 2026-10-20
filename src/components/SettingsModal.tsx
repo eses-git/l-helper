@@ -1,7 +1,10 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { Activity, Check, CircleAlert, Cpu, KeyRound, LoaderCircle, SlidersHorizontal, X } from 'lucide-react'
+import { Activity, Check, CircleAlert, Cpu, Globe, KeyRound, LoaderCircle, Mic, SlidersHorizontal, Trash2, X } from 'lucide-react'
 import { useProfile } from '../context/ProfileContext'
 import { streamAnswer } from '../services/apiService'
+import { clearVoiceProfile, getVoiceProfile, recordVoiceSample } from '../services/audioProcessingService'
+import type { VoiceProfile } from '../types'
+import Toggle from './Toggle'
 
 interface SettingsModalProps {
   open: boolean
@@ -71,9 +74,32 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
     { id: 'context', label: 'Candidate context', status: 'idle', message: 'Not run yet' },
     { id: 'api', label: 'API streaming', status: 'idle', message: 'Not run yet' },
   ])
+  const [voiceProfile, setVoiceProfile] = useState<VoiceProfile | null>(() => getVoiceProfile())
+  const [isRecording, setIsRecording] = useState(false)
+  const [voiceError, setVoiceError] = useState<string | null>(null)
 
   const updateCheck = (id: CheckItem['id'], patch: Partial<CheckItem>) => {
     setChecks((prev) => prev.map((check) => (check.id === id ? { ...check, ...patch } : check)))
+  }
+
+  const handleRecordVoice = async () => {
+    if (isRecording) return
+    setIsRecording(true)
+    setVoiceError(null)
+    try {
+      const profile = await recordVoiceSample(5000)
+      setVoiceProfile(profile)
+    } catch (err) {
+      setVoiceError(err instanceof Error ? err.message : 'Could not record the voice sample.')
+    } finally {
+      setIsRecording(false)
+    }
+  }
+
+  const handleClearVoice = () => {
+    clearVoiceProfile()
+    setVoiceProfile(null)
+    setVoiceError(null)
   }
 
   const runMicTest = async () => {
@@ -209,24 +235,24 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
-      <div className="relative flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950 shadow-2xl">
-        <header className="flex items-center gap-2 border-b border-zinc-800 px-5 py-4">
+      <div className="relative flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950 shadow-2xl sm:max-h-[90vh]">
+        <header className="flex items-center gap-2 border-b border-zinc-800 px-4 py-3 sm:px-5 sm:py-4">
           <SlidersHorizontal size={18} className="text-emerald-400" />
           <h2 className="text-base font-semibold text-zinc-50">Settings</h2>
           <button
             type="button"
             onClick={onClose}
-            className="ml-auto flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-800 text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-50"
+            className="ml-auto flex h-11 w-11 items-center justify-center rounded-lg border border-zinc-800 text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-50"
             aria-label="Close settings"
           >
             <X size={18} />
           </button>
         </header>
 
-        <div className="scrollbar-thin flex-1 space-y-5 overflow-y-auto px-5 py-5">
+        <div className="scrollbar-thin flex-1 space-y-5 overflow-y-auto px-4 py-4 sm:px-5 sm:py-5">
           <Field label="API endpoint URL">
             <input
               className={inputClass}
@@ -278,23 +304,13 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
             />
           </Field>
 
-          <div className="flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2.5">
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2.5">
             <span className="text-sm text-zinc-200">Auto-send on final</span>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={settings.autoSendOnFinal}
-              onClick={() => updateSettings({ autoSendOnFinal: !settings.autoSendOnFinal })}
-              className={`relative h-5 w-9 rounded-full transition-colors ${
-                settings.autoSendOnFinal ? 'bg-emerald-500' : 'bg-zinc-700'
-              }`}
-            >
-              <span
-                className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform ${
-                  settings.autoSendOnFinal ? 'translate-x-[18px]' : 'translate-x-0.5'
-                }`}
-              />
-            </button>
+            <Toggle
+              checked={settings.autoSendOnFinal}
+              onChange={(value) => updateSettings({ autoSendOnFinal: value })}
+              label="Toggle auto-send"
+            />
           </div>
 
           <Field label="System prompt template">
@@ -306,13 +322,102 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
               placeholder="Optional custom instructions — prepended to the built-in co-pilot prompt"
             />
           </Field>
+
+          <div className="border-t border-zinc-800 pt-4">
+            <div className="flex items-center gap-2 text-zinc-300">
+              <Globe size={14} className="text-emerald-400" />
+              <h3 className="text-xs font-semibold uppercase tracking-wide">Network stream</h3>
+              <span className="flex-1 border-t border-zinc-800" />
+            </div>
+
+            <div className="mt-3">
+              <Field label="Stream WebSocket URL">
+                <input
+                  className={inputClass}
+                  value={settings.networkStreamUrl}
+                  onChange={(e) => updateSettings({ networkStreamUrl: e.target.value })}
+                  placeholder="ws://192.168.1.20:8080"
+                />
+              </Field>
+              <p className="mt-1.5 text-[11px] leading-relaxed text-zinc-500">
+                The relay should send frames as plain text or JSON like{' '}
+                <code className="rounded bg-zinc-800 px-1 py-0.5 font-mono text-[10px] text-emerald-200">
+                  {'{ "transcript": "…" }'}
+                </code>
+                .
+              </p>
+            </div>
+          </div>
+
+          <div className="border-t border-zinc-800 pt-4">
+            <div className="flex items-center gap-2 text-zinc-300">
+              <Mic size={14} className="text-emerald-400" />
+              <h3 className="text-xs font-semibold uppercase tracking-wide">Voice profile</h3>
+              <span className="flex-1 border-t border-zinc-800" />
+            </div>
+
+            <div className="mt-3 space-y-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => void handleRecordVoice()}
+                  disabled={isRecording}
+                  className="flex min-h-11 items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm font-medium text-emerald-300 transition-colors hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {isRecording ? <LoaderCircle size={15} className="animate-spin" /> : <Mic size={15} />}
+                  {isRecording ? 'Recording…' : 'Record Voice Sample (5s)'}
+                </button>
+                {voiceProfile && (
+                  <button
+                    type="button"
+                    onClick={handleClearVoice}
+                    className="flex min-h-11 items-center gap-1.5 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-xs text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-100"
+                  >
+                    <Trash2 size={14} />
+                    Clear
+                  </button>
+                )}
+              </div>
+
+              {voiceError && (
+                <p className="flex items-start gap-1.5 rounded-lg border border-amber-500/20 bg-amber-500/10 px-2.5 py-1.5 text-[11px] text-amber-300">
+                  <CircleAlert size={14} className="mt-0.5 shrink-0" />
+                  {voiceError}
+                </p>
+              )}
+
+              {voiceProfile ? (
+                <p className="rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2 text-[11px] leading-relaxed text-zinc-400">
+                  Profile saved — pitch ~{Math.round(voiceProfile.pitch)} Hz, spectral centroid ~
+                  {Math.round(voiceProfile.spectralCentroid)} Hz.
+                </p>
+              ) : (
+                <p className="text-[11px] leading-relaxed text-zinc-500">
+                  Record a 5 second sample of your voice. In Voice Filter mode, speech that matches
+                  this profile is ignored so only the interviewer is transcribed.
+                </p>
+              )}
+
+              <Field label={`Match threshold — ${settings.voiceMatchThreshold.toFixed(2)}`}>
+                <input
+                  type="range"
+                  min={0}
+                  max={0.6}
+                  step={0.01}
+                  value={settings.voiceMatchThreshold}
+                  onChange={(e) => updateSettings({ voiceMatchThreshold: Number(e.target.value) })}
+                  className="w-full accent-emerald-500"
+                />
+              </Field>
+            </div>
+          </div>
         </div>
 
-        <footer className="flex items-center justify-between gap-2 border-t border-zinc-800 px-5 py-3">
+        <footer className="flex items-center justify-between gap-2 border-t border-zinc-800 px-4 py-3 sm:px-5">
           <button
             type="button"
             onClick={resetSettings}
-            className="text-xs text-zinc-500 transition-colors hover:text-zinc-300"
+            className="flex min-h-11 items-center text-xs text-zinc-500 transition-colors hover:text-zinc-300"
           >
             Reset to defaults
           </button>
@@ -320,7 +425,7 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
             <button
               type="button"
               onClick={openAndRun}
-              className="flex items-center gap-1.5 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm font-medium text-zinc-200 transition-colors hover:bg-zinc-800"
+              className="flex min-h-11 items-center gap-1.5 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm font-medium text-zinc-200 transition-colors hover:bg-zinc-800"
             >
               <Activity size={15} />
               Run System Check
@@ -328,7 +433,7 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-zinc-950 transition-colors hover:bg-emerald-400"
+              className="flex min-h-11 items-center rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-zinc-950 transition-colors hover:bg-emerald-400"
             >
               Done
             </button>
@@ -349,7 +454,7 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
               <button
                 type="button"
                 onClick={() => setIsCheckOpen(false)}
-                className="ml-auto flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-800 text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-50"
+                className="ml-auto flex h-11 w-11 items-center justify-center rounded-lg border border-zinc-800 text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-50"
                 aria-label="Close system check"
               >
                 <X size={18} />
@@ -373,19 +478,19 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
               ))}
             </div>
 
-            <footer className="flex items-center justify-end gap-2 border-t border-zinc-800 px-5 py-3">
+            <footer className="flex items-center justify-end gap-2 border-t border-zinc-800 px-4 py-3 sm:px-5">
               <button
                 type="button"
                 onClick={() => void runDiagnostic()}
                 disabled={isRunning}
-                className="rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm font-medium text-zinc-200 transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex min-h-11 items-center rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm font-medium text-zinc-200 transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Run again
               </button>
               <button
                 type="button"
                 onClick={() => setIsCheckOpen(false)}
-                className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-zinc-950 transition-colors hover:bg-emerald-400"
+                className="flex min-h-11 items-center rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-zinc-950 transition-colors hover:bg-emerald-400"
               >
                 Close
               </button>

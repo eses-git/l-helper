@@ -86,6 +86,11 @@ export interface UseSpeechRecognitionOptions {
    * Fires only if the utterance has at least `minWords` words.
    */
   onFinalResult?: (finalText: string) => void
+  /**
+   * Optional gate applied right before `onFinalResult` fires. When provided and
+   * it returns `false`, the utterance is dropped (used by the voice filter).
+   */
+  filterFinal?: (text: string) => boolean
   /** Minimum word count required before `onFinalResult` fires. Defaults to 3. */
   minWords?: number
   /** Silence window (ms) to wait after `isFinal` before emitting. Defaults to 800. */
@@ -106,7 +111,7 @@ export interface UseSpeechRecognitionReturn {
 export function useSpeechRecognition(
   options: UseSpeechRecognitionOptions = {},
 ): UseSpeechRecognitionReturn {
-  const { lang = 'en-US', onFinalResult, minWords = 3, finalDebounceMs = 800 } = options
+  const { lang = 'en-US', onFinalResult, filterFinal, minWords = 3, finalDebounceMs = 800 } = options
 
   const [isListening, setIsListening] = useState(false)
   const [transcript, setTranscript] = useState('')
@@ -117,6 +122,7 @@ export function useSpeechRecognition(
   const shouldListenRef = useRef(false)
   const restartTimerRef = useRef<number | null>(null)
   const onFinalResultRef = useRef(onFinalResult)
+  const filterFinalRef = useRef(filterFinal)
   const pendingFinalRef = useRef('')
   const finalDebounceTimerRef = useRef<number | null>(null)
   const minWordsRef = useRef(minWords)
@@ -128,6 +134,10 @@ export function useSpeechRecognition(
   useEffect(() => {
     onFinalResultRef.current = onFinalResult
   }, [onFinalResult])
+
+  useEffect(() => {
+    filterFinalRef.current = filterFinal
+  }, [filterFinal])
 
   useEffect(() => {
     minWordsRef.current = minWords
@@ -146,9 +156,9 @@ export function useSpeechRecognition(
     const text = pendingFinalRef.current.trim()
     clearPendingFinal()
     if (!text) return
-    if (text.split(/\s+/).filter(Boolean).length >= minWordsRef.current) {
-      onFinalResultRef.current?.(text)
-    }
+    if (text.split(/\s+/).filter(Boolean).length < minWordsRef.current) return
+    if (filterFinalRef.current && !filterFinalRef.current(text)) return
+    onFinalResultRef.current?.(text)
   }, [clearPendingFinal])
 
   const scheduleFinalDebounce = useCallback(() => {
