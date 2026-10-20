@@ -1,13 +1,9 @@
-import { Activity, ClipboardList, MessageSquare, PanelRight, PanelRightClose, Settings, Zap } from 'lucide-react'
-
-export type AppTab = 'transcript' | 'answer'
+import { Activity, MessageSquare, PanelRight, PanelRightClose, Settings, Sparkles, Zap } from 'lucide-react'
 
 interface NavbarProps {
   isListening: boolean
   transcriptCount: number
   answerCount: number
-  activeTab: AppTab
-  onTabChange: (tab: AppTab) => void
   isDrawerOpen: boolean
   onToggleDrawer: () => void
   onOpenSettings: () => void
@@ -17,17 +13,10 @@ export default function Navbar({
   isListening,
   transcriptCount,
   answerCount,
-  activeTab,
-  onTabChange,
   isDrawerOpen,
   onToggleDrawer,
   onOpenSettings,
 }: NavbarProps) {
-  const tabs: { id: AppTab; label: string; icon: typeof ClipboardList }[] = [
-    { id: 'transcript', label: 'Transcript', icon: ClipboardList },
-    { id: 'answer', label: 'Answer', icon: MessageSquare },
-  ]
-
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-zinc-800 bg-zinc-950/90 px-3 backdrop-blur sm:px-4">
       <div className="flex items-center gap-2.5">
@@ -40,36 +29,22 @@ export default function Navbar({
         </div>
       </div>
 
-      <nav
-        className="ml-1 flex items-center gap-1 rounded-lg border border-zinc-800 bg-zinc-900 p-1"
-        aria-label="View switcher"
-      >
-        {tabs.map((tab) => {
-          const Icon = tab.icon
-          const count = tab.id === 'transcript' ? transcriptCount : answerCount
-          const active = activeTab === tab.id
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => onTabChange(tab.id)}
-              className={`flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${
-                active ? 'bg-zinc-800 text-zinc-50' : 'text-zinc-400 hover:text-zinc-200'
-              }`}
-            >
-              <Icon size={15} />
-              <span className="hidden md:inline">{tab.label}</span>
-              <span
-                className={`rounded-full px-1.5 py-0.5 text-[10px] leading-none ${
-                  active ? 'bg-emerald-500/20 text-emerald-300' : 'bg-zinc-800 text-zinc-400'
-                }`}
-              >
-                {count}
-              </span>
-            </button>
-          )
-        })}
-      </nav>
+      <div className="ml-1 flex items-center gap-1.5">
+        <span
+          className="flex items-center gap-1.5 rounded-full border border-zinc-800 bg-zinc-900 px-2.5 py-1 text-[11px] text-zinc-400"
+          title="Questions captured"
+        >
+          <MessageSquare size={12} className="text-cyan-300" />
+          {transcriptCount}
+        </span>
+        <span
+          className="flex items-center gap-1.5 rounded-full border border-zinc-800 bg-zinc-900 px-2.5 py-1 text-[11px] text-zinc-400"
+          title="Answers generated"
+        >
+          <Sparkles size={12} className="text-emerald-300" />
+          {answerCount}
+        </span>
+      </div>
 
       <div className="ml-auto flex items-center gap-2">
         <span

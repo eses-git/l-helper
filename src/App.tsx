@@ -3,10 +3,9 @@ import { Check, Settings, X } from 'lucide-react'
 import { ProfileProvider, useProfile } from './context/ProfileContext'
 import { useSpeechRecognition } from './hooks/useSpeechRecognition'
 import type { AnswerItem, TranscriptItem } from './types'
-import Navbar, { type AppTab } from './components/Navbar'
+import Navbar from './components/Navbar'
 import SpeechControls from './components/SpeechControls'
 import TranscriptView from './components/TranscriptView'
-import AnswerDisplay from './components/AnswerDisplay'
 import ProfileManager from './components/ProfileManager'
 import SettingsModal from './components/SettingsModal'
 import { streamAnswer } from './services/apiService'
@@ -25,7 +24,6 @@ function isEditableTarget(target: HTMLElement): boolean {
 
 function AppShell() {
   const { profile, settings, updateSettings } = useProfile()
-  const [activeTab, setActiveTab] = useState<AppTab>('transcript')
   const [isDrawerOpen, setDrawerOpen] = useState(false)
   const [isSettingsOpen, setSettingsOpen] = useState(false)
   const [transcriptItems, setTranscriptItems] = useState<TranscriptItem[]>([])
@@ -207,42 +205,31 @@ function AppShell() {
         isListening={isListening}
         transcriptCount={transcriptItems.length}
         answerCount={answerItems.length}
-        activeTab={activeTab}
-        onTabChange={setActiveTab}
         isDrawerOpen={isDrawerOpen}
         onToggleDrawer={() => setDrawerOpen((v) => !v)}
         onOpenSettings={() => setSettingsOpen(true)}
       />
 
-      <div className="mx-auto w-full max-w-[1600px] flex-1">
-        <main className="grid h-full grid-cols-1 gap-4 p-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
-          <section
-            className={`min-h-0 flex-col gap-4 ${activeTab === 'transcript' ? 'flex' : 'hidden lg:flex'}`}
-          >
-            <SpeechControls
-              isSupported={isSupported}
-              isListening={isListening}
-              error={error}
-              onStart={startListening}
-              onStop={stopListening}
-              onReset={resetTranscript}
-            />
-            <TranscriptView
-              items={transcriptItems}
-              interimText={interimTranscript}
-              isListening={isListening}
-              autoSendOnFinal={settings.autoSendOnFinal}
-              onToggleAutoSend={(value) => updateSettings({ autoSendOnFinal: value })}
-              onClear={clearTranscript}
-              onGenerate={(item) => generateAnswer(item.id, item.text)}
-            />
-          </section>
-
-          <section
-            className={`min-h-0 flex-col gap-4 ${activeTab === 'answer' ? 'flex' : 'hidden lg:flex'}`}
-          >
-            <AnswerDisplay items={answerItems} />
-          </section>
+      <div className="mx-auto w-full max-w-4xl flex-1">
+        <main className="flex h-full flex-col gap-4 p-4">
+          <SpeechControls
+            isSupported={isSupported}
+            isListening={isListening}
+            error={error}
+            onStart={startListening}
+            onStop={stopListening}
+            onReset={resetTranscript}
+          />
+          <TranscriptView
+            items={transcriptItems}
+            answerItems={answerItems}
+            interimText={interimTranscript}
+            isListening={isListening}
+            autoSendOnFinal={settings.autoSendOnFinal}
+            onToggleAutoSend={(value) => updateSettings({ autoSendOnFinal: value })}
+            onClear={clearTranscript}
+            onGenerate={(item) => generateAnswer(item.id, item.text)}
+          />
         </main>
       </div>
 

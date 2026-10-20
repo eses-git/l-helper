@@ -1,9 +1,11 @@
 import { useEffect, useRef } from 'react'
-import { ListChecks, Send, Trash } from 'lucide-react'
-import type { TranscriptItem } from '../types'
+import { Check, CircleAlert, ListChecks, LoaderCircle, Send, Trash } from 'lucide-react'
+import type { AnswerItem, TranscriptItem } from '../types'
+import MarkdownText from './MarkdownText'
 
 interface TranscriptViewProps {
   items: TranscriptItem[]
+  answerItems: AnswerItem[]
   interimText: string
   isListening: boolean
   autoSendOnFinal: boolean
@@ -20,8 +22,58 @@ function formatTime(timestamp: number): string {
   })
 }
 
+function AnswerBlock({ answer }: { answer: AnswerItem }) {
+  if (answer.status === 'pending') {
+    return (
+      <div className="flex items-center gap-2 text-xs text-zinc-500">
+        <LoaderCircle size={13} className="animate-spin" />
+        Generating…
+      </div>
+    )
+  }
+
+  if (answer.status === 'error') {
+    return (
+      <div className="flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2">
+        <CircleAlert size={14} className="mt-0.5 shrink-0 text-red-400" />
+        <p className="text-xs leading-relaxed text-red-200">
+          {answer.error ?? 'Something went wrong while generating the answer.'}
+        </p>
+      </div>
+    )
+  }
+
+  if (answer.status === 'streaming') {
+    return (
+      <div>
+        <span className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wide text-emerald-400">
+          <LoaderCircle size={12} className="animate-spin" />
+          Streaming
+        </span>
+        <p className="mt-1.5 whitespace-pre-wrap break-words text-sm leading-relaxed text-zinc-200">
+          {answer.answerText}
+          <span className="caret-blink ml-0.5 inline-block h-[1em] w-[2px] translate-y-[2px] bg-emerald-400" />
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      <span className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wide text-zinc-500">
+        <Check size={12} className="text-emerald-400" />
+        Answer
+      </span>
+      <div className="mt-1.5">
+        <MarkdownText text={answer.answerText} />
+      </div>
+    </div>
+  )
+}
+
 export default function TranscriptView({
   items,
+  answerItems,
   interimText,
   isListening,
   autoSendOnFinal,
@@ -34,7 +86,7 @@ export default function TranscriptView({
   useEffect(() => {
     const el = scrollRef.current
     if (el) el.scrollTop = el.scrollHeight
-  }, [items.length, interimText])
+  }, [items.length, interimText, answerItems])
 
   return (
     <section className="flex min-h-0 flex-1 flex-col rounded-xl border border-zinc-800 bg-zinc-900/60">
@@ -83,33 +135,42 @@ export default function TranscriptView({
           </div>
         )}
 
-        {items.map((item) => (
-          <div key={item.id} className="rounded-lg border border-zinc-800 bg-zinc-950/50 p-3">
-            <div className="mb-1 flex items-center gap-2">
-              <span
-                className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
-                  item.speaker === 'interviewer'
-                    ? 'bg-cyan-500/15 text-cyan-300'
-                    : 'bg-violet-500/15 text-violet-300'
-                }`}
-              >
-                {item.speaker}
-              </span>
-              <span className="text-[10px] text-zinc-500">{formatTime(item.timestamp)}</span>
-              {!autoSendOnFinal && item.speaker === 'interviewer' && (
-                <button
-                  type="button"
-                  onClick={() => onGenerate(item)}
-                  className="ml-auto flex items-center gap-1 rounded border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] text-emerald-300 transition-colors hover:bg-emerald-500/20"
+        {items.map((item) => {
+          const answer = answerItems.find((a) => a.questionId === item.id)
+          return (
+            <div key={item.id} className="rounded-lg border border-zinc-800 bg-zinc-950/50 p-3">
+              <div className="mb-1 flex items-center gap-2">
+                <span
+                  className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                    item.speaker === 'interviewer'
+                      ? 'bg-cyan-500/15 text-cyan-300'
+                      : 'bg-violet-500/15 text-violet-300'
+                  }`}
                 >
-                  <Send size={11} />
-                  Ask
-                </button>
+                  {item.speaker}
+                </span>
+                <span className="text-[10px] text-zinc-500">{formatTime(item.timestamp)}</span>
+                {!autoSendOnFinal && item.speaker === 'interviewer' && (
+                  <button
+                    type="button"
+                    onClick={() => onGenerate(item)}
+                    className="ml-auto flex items-center gap-1 rounded border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] text-emerald-300 transition-colors hover:bg-emerald-500/20"
+                  >
+                    <Send size={11} />
+                    Ask
+                  </button>
+                )}
+              </div>
+              <p className="text-sm leading-relaxed text-zinc-200">{item.text}</p>
+
+              {answer && (
+                <div className="mt-3 rounded-lg border border-zinc-800/70 bg-zinc-900/40 px-3 py-2.5">
+                  <AnswerBlock answer={answer} />
+                </div>
               )}
             </div>
-            <p className="text-sm leading-relaxed text-zinc-200">{item.text}</p>
-          </div>
-        ))}
+          )
+        })}
 
         {interimText && (
           <div className="rounded-lg border border-dashed border-zinc-700 bg-zinc-950/50 p-3">
