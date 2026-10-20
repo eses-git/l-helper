@@ -134,6 +134,9 @@ function buildGeminiUrl(
   const path = queryIndex === -1 ? url : url.slice(0, queryIndex)
   const params = new URLSearchParams(queryIndex === -1 ? '' : url.slice(queryIndex + 1))
   params.set('key', apiKey)
+  if (action === 'streamGenerateContent') {
+    params.set('alt', 'sse')
+  }
 
   return `${path}?${params.toString()}`
 }
@@ -174,11 +177,112 @@ function extractGeminiChunk(json: unknown): string {
   const chunk = json as GeminiChunk
   const parts = chunk.candidates?.[0]?.content?.parts
   if (!Array.isArray(parts)) return ''
-  return parts.map((part) => (typeof part?.text === 'string' ? part.text : '')).join('')
+
+  // Only surface textual parts. "Thinking"/metadata parts (which have no
+  // `text` field) are skipped, so partial chunks never abort the stream.
+  return parts.map((part) => (part && typeof part.text === 'string' ? part.text : '')).join('')
 }
 
 function isAbortError(error: unknown): boolean {
   return error instanceof DOMException && error.name === 'AbortError'
+}
+
+interface StreamReadTracker {
+  receivedText: boolean
+}
+
+async function readResponseStream(
+  response: Response,
+  provider: Provider,
+  onChunk: (chunk: string) => void,
+  tracker: StreamReadTracker,
+): Promise<void> {
+  if (!response.body) {
+    throw new Error('Streaming responses are not supported by this browser.')
+  }
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+
+  const processLine = (line: string) => {
+    const trimmed = line.trim()
+    if (!trimmed) return
+
+    let payload = trimmed
+    if (trimmed.startsWith('data:')) payload = trimmed.slice(5).trim()
+    if (payload === '[DONE]') return
+
+    let json: unknown
+    try {
+      json = JSON.parse(payload)
+    } catch {
+      return
+    }
+
+    const chunk = provider === 'gemini' ? extractGeminiChunk(json) : extractOpenAIChunk(json)
+    if (chunk) {
+      tracker.receivedText = true
+      onChunk(chunk)
+    }
+  }
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+
+      const lines = buffer.split('\n')
+      buffer = lines.pop() ?? ''
+      for (const line of lines) processLine(line)
+    }
+
+    buffer += decoder.decode()
+    if (buffer.trim()) processLine(buffer)
+  } finally {
+    reader.releaseLock()
+  }
+}
+
+async function fetchGeminiContent(
+  settings: AppSettings,
+  systemPrompt: string,
+  question: string,
+  signal: AbortSignal | undefined,
+): Promise<string> {
+  const modelName = settings.modelName.trim() || GEMINI_DEFAULT_MODEL
+  const url = buildGeminiUrl(settings.apiEndpoint, modelName, settings.apiKey.trim(), 'generateContent')
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ role: 'user', parts: [{ text: question }] }],
+      systemInstruction: { parts: [{ text: systemPrompt }] },
+      generationConfig: { temperature: settings.temperature },
+    }),
+    signal,
+  })
+
+  if (!response.ok) {
+    let detail = ''
+    try {
+      detail = await response.text()
+    } catch {
+      // Ignore body read failures.
+    }
+    throw new Error(`API request failed (status ${response.status})${detail ? `: ${detail.slice(0, 200)}` : ''}.`)
+  }
+
+  const data = (await response.json()) as {
+    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>
+  }
+
+  const parts = data.candidates?.[0]?.content?.parts
+  if (!Array.isArray(parts)) return ''
+
+  return parts.map((part) => (part && typeof part.text === 'string' ? part.text : '')).join('')
 }
 
 export async function streamAnswer(params: StreamAnswerParams): Promise<void> {
@@ -204,16 +308,41 @@ export async function streamAnswer(params: StreamAnswerParams): Promise<void> {
       ? buildGeminiRequest(settings, systemPrompt, question)
       : { url: endpoint, init: buildOpenAIRequest(settings, systemPrompt, question) }
 
+  // Gemini-only: non-streaming `:generateContent` fallback used when streaming
+  // fails or returns no text.
+  const runGeminiFallback = async () => {
+    try {
+      const text = await fetchGeminiContent(settings, systemPrompt, question, signal)
+      if (!text) {
+        onError(new Error('Gemini returned an empty response.'))
+        return
+      }
+      onChunk(text)
+      onComplete()
+    } catch (error) {
+      if (isAbortError(error) || signal?.aborted) return
+      onError(error instanceof Error ? error : new Error('Gemini non-streaming fallback failed.'))
+    }
+  }
+
   let response: Response
   try {
     response = await fetch(url, { ...init, signal })
   } catch (error) {
     if (isAbortError(error) || signal?.aborted) return
+    if (provider === 'gemini') {
+      await runGeminiFallback()
+      return
+    }
     onError(error instanceof Error ? error : new Error('Network error — could not reach the API endpoint.'))
     return
   }
 
   if (!response.ok) {
+    if (provider === 'gemini') {
+      await runGeminiFallback()
+      return
+    }
     let detail = ''
     try {
       detail = await response.text()
@@ -226,53 +355,24 @@ export async function streamAnswer(params: StreamAnswerParams): Promise<void> {
     return
   }
 
-  if (!response.body) {
-    onError(new Error('Streaming responses are not supported by this browser.'))
+  const tracker: StreamReadTracker = { receivedText: false }
+  try {
+    await readResponseStream(response, provider, onChunk, tracker)
+  } catch (error) {
+    if (isAbortError(error) || signal?.aborted) return
+    if (provider === 'gemini' && !tracker.receivedText) {
+      await runGeminiFallback()
+      return
+    }
+    onError(error instanceof Error ? error : new Error('The stream was interrupted.'))
     return
   }
 
-  const reader = response.body.getReader()
-  const decoder = new TextDecoder()
-  let buffer = ''
-
-  const processLine = (line: string) => {
-    const trimmed = line.trim()
-    if (!trimmed) return
-
-    let payload = trimmed
-    if (trimmed.startsWith('data:')) payload = trimmed.slice(5).trim()
-    if (payload === '[DONE]') return
-
-    let json: unknown
-    try {
-      json = JSON.parse(payload)
-    } catch {
-      return
-    }
-
-    const chunk = provider === 'gemini' ? extractGeminiChunk(json) : extractOpenAIChunk(json)
-    if (chunk) onChunk(chunk)
+  // Gemini: fall back to non-streaming if the stream produced no text at all.
+  if (provider === 'gemini' && !tracker.receivedText && !signal?.aborted) {
+    await runGeminiFallback()
+    return
   }
 
-  try {
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-      buffer += decoder.decode(value, { stream: true })
-
-      const lines = buffer.split('\n')
-      buffer = lines.pop() ?? ''
-      for (const line of lines) processLine(line)
-    }
-
-    buffer += decoder.decode()
-    if (buffer.trim()) processLine(buffer)
-
-    onComplete()
-  } catch (error) {
-    if (isAbortError(error) || signal?.aborted) return
-    onError(error instanceof Error ? error : new Error('The stream was interrupted.'))
-  } finally {
-    reader.releaseLock()
-  }
+  onComplete()
 }
