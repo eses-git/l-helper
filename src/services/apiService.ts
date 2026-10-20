@@ -16,6 +16,11 @@ export interface StreamAnswerParams {
 
 type Provider = 'openai' | 'gemini'
 
+type GeminiAction = 'generateContent' | 'streamGenerateContent'
+
+/** Actively supported Gemini Flash model used as the default fall-back. */
+const GEMINI_DEFAULT_MODEL = 'gemini-1.5-flash'
+
 /** Rough shapes of the streaming payloads returned by each provider. */
 interface OpenAIChunk {
   choices?: Array<{
@@ -93,15 +98,44 @@ function buildOpenAIRequest(settings: AppSettings, systemPrompt: string, questio
   }
 }
 
-function buildGeminiUrl(endpoint: string, modelName: string): string {
+/**
+ * Builds a Gemini v1beta REST endpoint URL.
+ *
+ * Base endpoint:  https://generativelanguage.googleapis.com/v1beta
+ * Content path:   /models/${modelName}:generateContent
+ * Streaming path: /models/${modelName}:streamGenerateContent
+ *
+ * Trailing slashes are stripped and the `/models/${modelName}:<action>` path is
+ * appended automatically when only a root endpoint is provided.
+ */
+function buildGeminiUrl(
+  endpoint: string,
+  modelName: string,
+  apiKey: string,
+  action: GeminiAction,
+): string {
+  // Strip trailing slashes from the user-supplied base URL.
   let url = endpoint.trim().replace(/\/+$/, '')
-  if (!url.includes(':streamGenerateContent')) {
-    url = `${url}/models/${encodeURIComponent(modelName)}:streamGenerateContent`
+
+  const hasAction = url.includes(':generateContent') || url.includes(':streamGenerateContent')
+
+  if (!hasAction) {
+    const encodedModel = encodeURIComponent(modelName)
+    if (url.endsWith('/models')) {
+      url = `${url}/${encodedModel}`
+    } else if (!url.endsWith(`/models/${encodedModel}`)) {
+      url = `${url}/models/${encodedModel}`
+    }
+    url = `${url}:${action}`
   }
-  if (!url.includes('alt=sse')) {
-    url += `${url.includes('?') ? '&' : '?'}alt=sse`
-  }
-  return url
+
+  // Attach (or refresh) the API key query parameter without duplicating it.
+  const queryIndex = url.indexOf('?')
+  const path = queryIndex === -1 ? url : url.slice(0, queryIndex)
+  const params = new URLSearchParams(queryIndex === -1 ? '' : url.slice(queryIndex + 1))
+  params.set('key', apiKey)
+
+  return `${path}?${params.toString()}`
 }
 
 function buildGeminiRequest(
@@ -109,13 +143,14 @@ function buildGeminiRequest(
   systemPrompt: string,
   question: string,
 ): { url: string; init: RequestInit } {
+  const modelName = settings.modelName.trim() || GEMINI_DEFAULT_MODEL
+
   return {
-    url: buildGeminiUrl(settings.apiEndpoint, settings.modelName),
+    url: buildGeminiUrl(settings.apiEndpoint, modelName, settings.apiKey.trim(), 'streamGenerateContent'),
     init: {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-goog-api-key': settings.apiKey.trim(),
       },
       body: JSON.stringify({
         contents: [{ role: 'user', parts: [{ text: question }] }],

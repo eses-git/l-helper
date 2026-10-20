@@ -16,7 +16,7 @@ export const defaultProfile: CandidateProfile = {
 export const defaultSettings: AppSettings = {
   apiEndpoint: '',
   apiKey: '',
-  modelName: 'gpt-4o-mini',
+  modelName: 'gemini-1.5-flash',
   temperature: 0.3,
   autoSendOnFinal: true,
   systemPromptTemplate: '',
